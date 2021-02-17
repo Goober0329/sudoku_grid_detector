@@ -29,9 +29,12 @@ class SudokuGridDetector {
   SudokuGridDetector.fromFile(File file) : this._file = file;
   SudokuGridDetector.fromBytes(Uint8List bytes) : this._rawBytes = bytes;
 
+  List<Image> _stepImages = [];
+
   /// Image widget getters for displaying in Flutter
   Image get originalImage => _originalImage;
   Image get binaryImage => _binaryImage;
+  List<Image> get stepImages => _stepImages; // TODO remove
 
   /// sudoku grid getters
   List<List<int>> get sudokuGrid => _sudokuGrid;
@@ -82,36 +85,59 @@ class SudokuGridDetector {
       // image from Uint8List
       _file = File('${(await getTemporaryDirectory()).path}/temporary_file');
       await _file.writeAsBytes(_rawBytes.toList());
+      _originalImage = Image.memory(await _file.readAsBytes());
       print("${_file.path}");
     } else {
       return false;
     }
 
+    _stepImages.add(_originalImage); // TODO remove
+
     // Platform messages may fail, so we use a try/catch PlatformException.
-//    try {
-//      // TODO what are the actual steps that need to be done here?
-//      // TODO follow the tutorial and kill it.
-//      // openCV adaptive threshold
-//      _res = await ImgProc.adaptiveThreshold(
-//        _file.readAsBytesSync(),
-//        255,
-//        ImgProc.adaptiveThreshGaussianC,
-//        ImgProc.threshBinary,
-//        51,
-//        0,
-//      );
-//      print("res ${_res == null ? "does" : "doesn't"} equal null");
-//      _binaryImage = Image.memory((_res));
-//      print(
-//          "binaryImage ${_binaryImage == null ? "does" : "doesn't"} equal null");
-//      _binaryImageData = ImageData(image: await bytesToImage(_res));
-//      print(
-//          "binaryImageData ${_binaryImageData == null ? "does" : "doesn't"} equal null");
-//      await _binaryImageData.imageToByteData();
-//    } on PlatformException {
-//      print("some error occurred. possibly OpenCV PlatformException");
-//      return false;
-//    }
+    try {
+      // TODO what are the actual steps that need to be done here?
+      // TODO follow the tutorial and kill it.
+
+      // Gaussian Blur
+      _res = await ImgProc.gaussianBlur(
+        _file.readAsBytesSync(),
+        [11, 11],
+        0,
+      );
+      _stepImages.add(Image.memory((_res))); // TODO remove
+
+      // Adaptive Threshold
+      _res = await ImgProc.adaptiveThreshold(
+        _res,
+        255,
+        ImgProc.adaptiveThreshGaussianC,
+        ImgProc.threshBinaryInv,
+        5,
+        2,
+      );
+      _stepImages.add(Image.memory((_res))); // TODO remove
+
+      // Dilate image to fill in gaps in the border lines
+      _res = await ImgProc.dilate(
+        _res,
+        [1, 1],
+      );
+      _stepImages.add(Image.memory((_res))); // TODO remove
+
+      // TODO the rest of the steps
+
+      print("res ${_res == null ? "does" : "doesn't"} equal null");
+      _binaryImage = Image.memory((_res));
+      print(
+          "binaryImage ${_binaryImage == null ? "does" : "doesn't"} equal null");
+      _binaryImageData = ImageData(image: await bytesToImage(_res));
+      print(
+          "binaryImageData ${_binaryImageData == null ? "does" : "doesn't"} equal null");
+      await _binaryImageData.imageToByteData();
+    } on PlatformException {
+      print("some error occurred. possibly OpenCV PlatformException");
+      return false;
+    }
     return true;
   }
 }

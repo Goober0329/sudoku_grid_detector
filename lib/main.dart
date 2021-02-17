@@ -1,9 +1,4 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:provider/provider.dart';
 import 'package:sudoku_grid_detector/sudoku_grid_detector.dart';
 
 void main() {
@@ -16,7 +11,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  Image original, binary;
+  List<Image> steps = [];
 
   void runDetector() async {
     print("running detector");
@@ -24,8 +19,9 @@ class _MyAppState extends State<MyApp> {
     bool gotGrid = await detector.detectSudokuGrid();
     if (gotGrid) {
       setState(() {
-        original = detector.originalImage;
-        binary = detector.binaryImage;
+//        original = detector.originalImage;
+//        binary = detector.binaryImage;
+        steps = detector.stepImages;
       });
       print("got grid!");
     } else {
@@ -39,27 +35,20 @@ class _MyAppState extends State<MyApp> {
       debugShowCheckedModeBanner: false,
       home: Scaffold(
         floatingActionButton: FloatingActionButton(
+          child: Icon(Icons.thumb_up),
           onPressed: () {
             runDetector();
           },
         ),
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              original == null
-                  ? Container()
-                  : Container(
-                      width: 225,
-                      child: original,
-                    ),
-              binary == null
-                  ? Container()
-                  : Container(
-                      width: 225,
-                      child: binary,
-                    ),
-            ],
+          child: ListView.builder(
+            itemCount: steps.length,
+            itemBuilder: (BuildContext context, int index) {
+              return Container(
+                width: 300,
+                child: steps[index],
+              );
+            },
           ),
         ),
       ),
