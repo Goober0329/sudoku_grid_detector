@@ -42,7 +42,13 @@ class SudokuGridDetector {
   /// main SudokuGridDetector method for finding a Sudoku grid in an image
   Future<bool> detectSudokuGrid() async {
     bool allAccordingToPlan;
+
+    // use OpenCV to prepare the image for grid detection
     allAccordingToPlan = await _prepareImageData();
+    if (!allAccordingToPlan) return false;
+
+    // detect the grid, perform a matrix transform to show just the grid
+    allAccordingToPlan = _detectAndCropGrid();
     if (!allAccordingToPlan) return false;
 
     // TODO image manipulation and grid detection
@@ -90,14 +96,10 @@ class SudokuGridDetector {
     } else {
       return false;
     }
-
     _stepImages.add(_originalImage); // TODO remove
 
     // Platform messages may fail, so we use a try/catch PlatformException.
     try {
-      // TODO what are the actual steps that need to be done here?
-      // TODO follow the tutorial and kill it.
-
       // Gaussian Blur
       _res = await ImgProc.gaussianBlur(
         _file.readAsBytesSync(),
@@ -138,6 +140,35 @@ class SudokuGridDetector {
       print("some error occurred. possibly OpenCV PlatformException");
       return false;
     }
+    return true;
+  }
+
+  bool _detectAndCropGrid() {
+    print("adding image from bytedData");
+    Image testImage = Image.memory(_binaryImageData.rawBytes);
+    stepImages.add(testImage);
+
+    // test ability to change color
+    print("attempting to place colors");
+    String colorChange;
+    for (int i = 50; i < 100; i++) {
+      for (int j = 50; j < 100; j++) {
+        colorChange = "";
+        colorChange += "${_binaryImageData.getPixelColorAt(i, j)} --> ";
+
+        _binaryImageData.setPixelColorAt(i, j, Colors.white);
+
+        colorChange += "${_binaryImageData.getPixelColorAt(i, j)}";
+//        print(colorChange);
+      }
+    }
+    print("colors placed");
+    testImage = Image.memory(_binaryImageData.rawBytes);
+    stepImages.add(testImage);
+
+    // detect Blobs and flood fill them with gray
+
+    // flood fill the largest blob with white (should be the sudoku grid)
     return true;
   }
 }
