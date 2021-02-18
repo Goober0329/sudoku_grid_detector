@@ -149,7 +149,6 @@ class SudokuGridDetector {
           }
         }
       }
-
     } on PlatformException {
       print("some error occurred. possibly OpenCV PlatformException");
       return false;
@@ -184,7 +183,7 @@ class SudokuGridDetector {
         }
       }
     }
-    stepImages.add(Image.memory(_binaryImageData.rawBytes)); // TODO remove
+//    stepImages.add(Image.memory(_binaryImageData.rawBytes)); // TODO remove
 
     // flood fill the largest blob with white (should be the sudoku grid)
     // flood fill the smaller blobs with black
@@ -194,7 +193,6 @@ class SudokuGridDetector {
     x = blobs[0].points[0][0];
     y = blobs[0].points[0][1];
     c = _binaryImageData.getPixelColorAt(x, y);
-    // TODO DEBUG HERE
     _floodFill(
       x: x,
       y: y,
@@ -202,14 +200,12 @@ class SudokuGridDetector {
       fill: Colors.white,
       imgData: _binaryImageData,
     );
-
-//    stepImages.add(Image.memory(_binaryImageData.rawBytes)); // TODO remove
+    stepImages.add(Image.memory(_binaryImageData.rawBytes)); // TODO remove
 
     for (int b = 1; b < blobs.length; b++) {
       x = blobs[b].points[0][0];
       y = blobs[b].points[0][1];
       c = _binaryImageData.getPixelColorAt(x, y);
-
       _floodFill(
         x: x,
         y: y,
@@ -218,7 +214,7 @@ class SudokuGridDetector {
         imgData: _binaryImageData,
       );
     }
-//    stepImages.add(Image.memory(_binaryImageData.rawBytes)); // TODO remove
+    stepImages.add(Image.memory(_binaryImageData.rawBytes)); // TODO remove
 
     // TODO next step
 
@@ -252,10 +248,38 @@ class SudokuGridDetector {
     }
 
     // recursive flood fill
-    _floodFill(x: x, y: y - 1, fill: fill, imgData: imgData, blob: blob);
-    _floodFill(x: x, y: y + 1, fill: fill, imgData: imgData, blob: blob);
-    _floodFill(x: x - 1, y: y, fill: fill, imgData: imgData, blob: blob);
-    _floodFill(x: x + 1, y: y, fill: fill, imgData: imgData, blob: blob);
+    _floodFill(
+      x: x,
+      y: y - 1,
+      toFill: toFill,
+      fill: fill,
+      imgData: imgData,
+      blob: blob,
+    );
+    _floodFill(
+      x: x,
+      y: y + 1,
+      toFill: toFill,
+      fill: fill,
+      imgData: imgData,
+      blob: blob,
+    );
+    _floodFill(
+      x: x - 1,
+      y: y,
+      toFill: toFill,
+      fill: fill,
+      imgData: imgData,
+      blob: blob,
+    );
+    _floodFill(
+      x: x + 1,
+      y: y,
+      toFill: toFill,
+      fill: fill,
+      imgData: imgData,
+      blob: blob,
+    );
     return;
   }
 }
