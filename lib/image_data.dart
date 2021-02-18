@@ -101,6 +101,7 @@ class ImageData {
 /// this class from the above mentioned github link does that.
 const int bitmapPixelLength = 4;
 const int RGBA32HeaderSize = 122;
+
 class _Bitmap {
   _Bitmap.fromHeadless(this.width, this.height, this.content);
 

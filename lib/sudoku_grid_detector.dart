@@ -126,8 +126,6 @@ class SudokuGridDetector {
       );
       _stepImages.add(Image.memory((_res))); // TODO remove
 
-      // TODO the rest of the steps
-
       print("res ${_res == null ? "does" : "doesn't"} equal null");
       _binaryImage = Image.memory((_res));
       print(
@@ -136,6 +134,21 @@ class SudokuGridDetector {
       print(
           "binaryImageData ${_binaryImageData == null ? "does" : "doesn't"} equal null");
       await _binaryImageData.imageToByteData();
+
+      // ensure that it is truly just black or white
+      // for some reason some of the pixels are not pure black/white and
+      // it causes issues when doing blob detection.
+      Color c;
+      for (int row = 0; row < _binaryImageData.width; row++) {
+        for (int col = 0; col < _binaryImageData.height; col++) {
+          c = _binaryImageData.getPixelColorAt(row, col);
+          if (c.computeLuminance() > 0.5) {
+            _binaryImageData.setPixelColorAt(row, col, Colors.black);
+          } else {
+            _binaryImageData.setPixelColorAt(row, col, Colors.white);
+          }
+        }
+      }
     } on PlatformException {
       print("some error occurred. possibly OpenCV PlatformException");
       return false;
@@ -144,31 +157,112 @@ class SudokuGridDetector {
   }
 
   bool _detectAndCropGrid() {
-    print("adding image from bytedData");
-    Image testImage = Image.memory(_binaryImageData.rawBytes);
-    stepImages.add(testImage);
-
-    // test ability to change color
-    print("attempting to place colors");
-    String colorChange;
-    for (int i = 50; i < 100; i++) {
-      for (int j = 50; j < 100; j++) {
-        colorChange = "";
-        colorChange += "${_binaryImageData.getPixelColorAt(i, j)} --> ";
-
-        _binaryImageData.setPixelColorAt(i, j, Colors.white);
-
-        colorChange += "${_binaryImageData.getPixelColorAt(i, j)}";
-//        print(colorChange);
+    // detect Blobs and flood fill them with gray
+    List<_Blob> blobs = [];
+    Color c;
+    for (int row = 0; row < _binaryImageData.height; row++) {
+      for (int col = 0; col < _binaryImageData.width; col++) {
+        c = _binaryImageData.getPixelColorAt(col, row);
+        try {
+          if (c.value == Colors.white.value) {
+            _Blob blob = _Blob();
+            _floodFill(
+              x: col,
+              y: row,
+              fill: Colors.grey,
+              imgData: _binaryImageData,
+              blob: blob,
+            );
+            blobs.add(blob);
+          }
+        } catch (e) {
+          print(e);
+          print("the color of the pixel at $col, $row could not be read");
+        }
       }
     }
-    print("colors placed");
-    testImage = Image.memory(_binaryImageData.rawBytes);
-    stepImages.add(testImage);
-
-    // detect Blobs and flood fill them with gray
+    stepImages.add(Image.memory(_binaryImageData.rawBytes)); // TODO remove
 
     // flood fill the largest blob with white (should be the sudoku grid)
+    // flood fill the smaller blobs with black
+    blobs.sort((b, a) => a.size.compareTo(b.size));
+
+    int x, y;
+    x = blobs[0].points[0][0];
+    y = blobs[0].points[0][1];
+    c = _binaryImageData.getPixelColorAt(x, y);
+
+    _floodFill(
+      x: x,
+      y: y,
+      toFill: c,
+      fill: Colors.white,
+      imgData: _binaryImageData,
+    );
+
+    stepImages.add(Image.memory(_binaryImageData.rawBytes)); // TODO remove
+
+    for (int b = 1; b < blobs.length; b++) {
+      x = blobs[b].points[0][0];
+      y = blobs[b].points[0][1];
+      c = _binaryImageData.getPixelColorAt(x, y);
+
+      _floodFill(
+        x: x,
+        y: y,
+        toFill: c,
+        fill: Colors.black,
+        imgData: _binaryImageData,
+      );
+    }
+    stepImages.add(Image.memory(_binaryImageData.rawBytes)); // TODO remove
+
+    // TODO next step
+
     return true;
+  }
+
+  void _floodFill({
+    @required int x,
+    @required int y,
+    Color toFill = Colors.white,
+    @required Color fill,
+    @required ImageData imgData,
+    _Blob blob,
+    double error = 0.1,
+  }) {
+    // return if the coordinate point is outside of image
+    if (x < 0 || x >= imgData.width || y < 0 || y >= imgData.height) {
+      return;
+    }
+
+    // return if the coordinate is outside of the fillC
+    Color c = imgData.getPixelColorAt(x, y);
+    if (c.value != toFill.value) {
+      return;
+    }
+
+    // set the point
+    imgData.setPixelColorAt(x, y, fill);
+    if (blob != null) {
+      blob.addPoint(x, y);
+    }
+
+    // recursive flood fill
+    _floodFill(x: x, y: y - 1, fill: fill, imgData: imgData, blob: blob);
+    _floodFill(x: x, y: y + 1, fill: fill, imgData: imgData, blob: blob);
+    _floodFill(x: x - 1, y: y, fill: fill, imgData: imgData, blob: blob);
+    _floodFill(x: x + 1, y: y, fill: fill, imgData: imgData, blob: blob);
+    return;
+  }
+}
+
+class _Blob {
+  List<List<int>> points = [];
+
+  int get size => points.length;
+
+  void addPoint(int x, int y) {
+    points.add([x, y]);
   }
 }
