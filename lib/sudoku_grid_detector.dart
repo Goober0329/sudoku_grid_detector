@@ -143,12 +143,13 @@ class SudokuGridDetector {
         for (int col = 0; col < _binaryImageData.height; col++) {
           c = _binaryImageData.getPixelColorAt(row, col);
           if (c.computeLuminance() > 0.5) {
-            _binaryImageData.setPixelColorAt(row, col, Colors.black);
-          } else {
             _binaryImageData.setPixelColorAt(row, col, Colors.white);
+          } else {
+            _binaryImageData.setPixelColorAt(row, col, Colors.black);
           }
         }
       }
+
     } on PlatformException {
       print("some error occurred. possibly OpenCV PlatformException");
       return false;
@@ -156,6 +157,8 @@ class SudokuGridDetector {
     return true;
   }
 
+  /// detects the sudoku grid and locates its corner points.
+  /// It then uses that to crop and transform the image to be just the grid
   bool _detectAndCropGrid() {
     // detect Blobs and flood fill them with gray
     List<_Blob> blobs = [];
@@ -191,7 +194,7 @@ class SudokuGridDetector {
     x = blobs[0].points[0][0];
     y = blobs[0].points[0][1];
     c = _binaryImageData.getPixelColorAt(x, y);
-
+    // TODO DEBUG HERE
     _floodFill(
       x: x,
       y: y,
@@ -200,7 +203,7 @@ class SudokuGridDetector {
       imgData: _binaryImageData,
     );
 
-    stepImages.add(Image.memory(_binaryImageData.rawBytes)); // TODO remove
+//    stepImages.add(Image.memory(_binaryImageData.rawBytes)); // TODO remove
 
     for (int b = 1; b < blobs.length; b++) {
       x = blobs[b].points[0][0];
@@ -215,7 +218,7 @@ class SudokuGridDetector {
         imgData: _binaryImageData,
       );
     }
-    stepImages.add(Image.memory(_binaryImageData.rawBytes)); // TODO remove
+//    stepImages.add(Image.memory(_binaryImageData.rawBytes)); // TODO remove
 
     // TODO next step
 

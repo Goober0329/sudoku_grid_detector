@@ -78,21 +78,33 @@ class ImageData {
   }
 
   void _setColorAtByteOffset(int byteOffset, Color c) {
-    _byteData.setInt32(byteOffset, _colorToInt32(c));
-  }
-
-  int _colorToInt32(Color c) {
-    return c.value;
+    _byteData.setInt32(byteOffset, _argbToRgba(c.value));
   }
 
   Color _colorAtByteOffset(int byteOffset) {
     return Color(_rgbaToArgb(_byteData.getUint32(byteOffset)));
   }
 
+  // https://stackoverflow.com/questions/11259391/fast-converting-rgba-to-argb
+  // bit shifting refresher
   int _rgbaToArgb(int rgbaColor) {
-    int a = rgbaColor & 0xFF;
-    int rgb = rgbaColor >> 8;
-    return rgb + (a << 24);
+    return
+        // Source is in format: 0xRRGGBBAA
+        ((rgbaColor & 0xFF000000) >> 8) | //AA______
+            ((rgbaColor & 0x00FF0000) >> 8) | //___RR____
+            ((rgbaColor & 0x0000FF00) >> 8) | //_____GG__
+            ((rgbaColor & 0x000000FF) << 24); //_______BB
+    // Return value is in format: 0xAARRGGBB
+  }
+
+  int _argbToRgba(int argbColor) {
+    return
+        // Source is in format: 0xAARRGGBB
+        ((argbColor & 0xFF000000) >> 24) | //______AA
+            ((argbColor & 0x00FF0000) << 8) | //RR______
+            ((argbColor & 0x0000FF00) << 8) | //__GG____
+            ((argbColor & 0x000000FF) << 8); //____BB__
+    // Return value is in format:  0xRRGGBBAA
   }
 }
 
