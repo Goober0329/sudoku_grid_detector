@@ -17,7 +17,7 @@ class ImageData {
 
   int get width => _width;
   int get height => _height;
-  Uint8List get rawBytes {
+  Uint8List get bytes {
     return _Bitmap.fromHeadless(
       _width,
       _height,
@@ -27,7 +27,7 @@ class ImageData {
 
   /// convert ui.Image to ByteData to be used in pixel getting
   /// this method must be called once after class initialization and before
-  /// calling [pixelColorAt]
+  /// calling [pixelColorAt] functions
   Future<void> imageToByteData() async {
     if (_image == null) {
       print("image was null and couldn't get byteData");
@@ -111,25 +111,17 @@ class ImageData {
 /// https://github.com/renancaraujo/bitmap/blob/master/lib/bitmap.dart
 /// my raw rgba data needs a header to be able to be instantiated as an image
 /// this class from the above mentioned github link does that.
-const int bitmapPixelLength = 4;
-const int RGBA32HeaderSize = 122;
+const int _bitmapPixelLength = 4;
+const int _RGBA32HeaderSize = 122;
 
 class _Bitmap {
   _Bitmap.fromHeadless(this.width, this.height, this.content);
-
-  /*
-  _Bitmap.fromHeadful(this.width, this.height, Uint8List headedIntList)
-      : content = headedIntList.sublist(
-    RGBA32HeaderSize,
-    headedIntList.length,
-  );
-   */
 
   final int width;
   final int height;
   final Uint8List content;
 
-  int get size => (width * height) * bitmapPixelLength;
+  int get size => (width * height) * _bitmapPixelLength;
 
   _Bitmap cloneHeadless() {
     return _Bitmap.fromHeadless(
@@ -138,26 +130,6 @@ class _Bitmap {
       Uint8List.fromList(content),
     );
   }
-
-  /*
-  static Future<_Bitmap> fromProvider(ImageProvider provider) async {
-    final Completer completer = Completer<ImageInfo>();
-    final ImageStream stream = provider.resolve(const ImageConfiguration());
-    final listener =
-    ImageStreamListener((ImageInfo info, bool synchronousCall) {
-      if (!completer.isCompleted) {
-        completer.complete(info);
-      }
-    });
-    stream.addListener(listener);
-    final imageInfo = await completer.future;
-    final ui.Image image = imageInfo.image;
-    final ByteData byteData = await image.toByteData();
-    final Uint8List listInt = byteData.buffer.asUint8List();
-
-    return _Bitmap.fromHeadless(image.width, image.height, listInt);
-  }
-   */
 
   Future<ui.Image> buildImage() async {
     final Completer<ui.Image> imageCompleter = Completer();
@@ -183,7 +155,7 @@ class _RGBA32BitmapHeader {
     bd.setUint8(0x0, 0x42);
     bd.setUint8(0x1, 0x4d);
     bd.setInt32(0x2, fileLength, Endian.little);
-    bd.setInt32(0xa, RGBA32HeaderSize, Endian.little);
+    bd.setInt32(0xa, _RGBA32HeaderSize, Endian.little);
     bd.setUint32(0xe, 108, Endian.little);
     bd.setUint32(0x12, width, Endian.little);
     bd.setUint32(0x16, -height, Endian.little);
@@ -201,7 +173,7 @@ class _RGBA32BitmapHeader {
 
   void applyContent(Uint8List contentIntList) {
     headerIntList.setRange(
-      RGBA32HeaderSize,
+      _RGBA32HeaderSize,
       fileLength,
       contentIntList,
     );
@@ -209,5 +181,5 @@ class _RGBA32BitmapHeader {
 
   Uint8List headerIntList;
 
-  int get fileLength => contentSize + RGBA32HeaderSize;
+  int get fileLength => contentSize + _RGBA32HeaderSize;
 }

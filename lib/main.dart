@@ -12,6 +12,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   List<Image> steps = [];
+  List<List<double>> points;
 
   void runDetector() async {
     print("running detector");
@@ -53,5 +54,24 @@ class _MyAppState extends State<MyApp> {
         ),
       ),
     );
+  }
+
+  List<Widget> getPointWidgets(List<List<double>> points, int w, int h) {
+    List<Widget> toReturn = [];
+
+    for (List<double> point in points) {
+      toReturn.add(
+        Positioned(
+          left: point[0] * w,
+          top: point[1] * h,
+          child: CircleAvatar(
+            radius: 2,
+            backgroundColor: Colors.red,
+          ),
+        ),
+      );
+    }
+
+    return toReturn;
   }
 }

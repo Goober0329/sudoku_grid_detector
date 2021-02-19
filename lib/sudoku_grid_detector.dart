@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'dart:async';
@@ -29,12 +30,12 @@ class SudokuGridDetector {
   SudokuGridDetector.fromFile(File file) : this._file = file;
   SudokuGridDetector.fromBytes(Uint8List bytes) : this._rawBytes = bytes;
 
-  List<Image> _stepImages = [];
+  List<Image> _stepImages = []; // TODO remove when complete
 
   /// Image widget getters for displaying in Flutter
   Image get originalImage => _originalImage;
   Image get binaryImage => _binaryImage;
-  List<Image> get stepImages => _stepImages; // TODO remove
+  List<Image> get stepImages => _stepImages; // TODO remove when complete
 
   /// sudoku grid getters
   List<List<int>> get sudokuGrid => _sudokuGrid;
@@ -48,25 +49,18 @@ class SudokuGridDetector {
     if (!allAccordingToPlan) return false;
 
     // detect the grid, perform a matrix transform to show just the grid
-    allAccordingToPlan = _detectAndCropGrid();
+    allAccordingToPlan = await _detectAndCropGrid();
     if (!allAccordingToPlan) return false;
 
-    // TODO image manipulation and grid detection
+    // TODO pull digits from the grid
 
-    return allAccordingToPlan; // ha. ha.
+    return allAccordingToPlan;
   }
 
   /// image preparation function that sets many of the class variables and
   /// creates an adaptively thresholded binary image that can be used to
   /// detect the Sudoku grids.
   Future<bool> _prepareImageData() async {
-    // This function helps convert raw image data into a ui.Image Object
-    Future<ui.Image> bytesToImage(Uint8List imgBytes) async {
-      ui.Codec codec = await ui.instantiateImageCodec(imgBytes);
-      ui.FrameInfo frame = await codec.getNextFrame();
-      return frame.image;
-    }
-
     // this function gets a file from an asset
     Future<File> getImageFileFromAssets(String path) async {
       final byteData = await rootBundle.load('assets/$path');
@@ -120,17 +114,14 @@ class SudokuGridDetector {
       _stepImages.add(Image.memory((_res))); // TODO remove
 
       // Dilate image to fill in gaps in the border lines
-      _res = await ImgProc.dilate(
-        _res,
-        [1, 1],
-      );
+      _res = await ImgProc.dilate(_res, [1, 1]);
       _stepImages.add(Image.memory((_res))); // TODO remove
 
       print("res ${_res == null ? "does" : "doesn't"} equal null");
       _binaryImage = Image.memory((_res));
       print(
           "binaryImage ${_binaryImage == null ? "does" : "doesn't"} equal null");
-      _binaryImageData = ImageData(image: await bytesToImage(_res));
+      _binaryImageData = ImageData(image: await _bytesToImage(_res));
       print(
           "binaryImageData ${_binaryImageData == null ? "does" : "doesn't"} equal null");
       await _binaryImageData.imageToByteData();
@@ -158,7 +149,7 @@ class SudokuGridDetector {
 
   /// detects the sudoku grid and locates its corner points.
   /// It then uses that to crop and transform the image to be just the grid
-  bool _detectAndCropGrid() {
+  Future<bool> _detectAndCropGrid() async {
     // detect Blobs and flood fill them with gray
     List<_Blob> blobs = [];
     Color c;
@@ -171,7 +162,6 @@ class SudokuGridDetector {
             _floodFill(
               x: col,
               y: row,
-              fill: Colors.grey,
               imgData: _binaryImageData,
               blob: blob,
             );
@@ -180,10 +170,10 @@ class SudokuGridDetector {
         } catch (e) {
           print(e);
           print("the color of the pixel at $col, $row could not be read");
+          return false;
         }
       }
     }
-//    stepImages.add(Image.memory(_binaryImageData.rawBytes)); // TODO remove
 
     // flood fill the largest blob with white (should be the sudoku grid)
     // flood fill the smaller blobs with black
@@ -200,7 +190,7 @@ class SudokuGridDetector {
       fill: Colors.white,
       imgData: _binaryImageData,
     );
-    stepImages.add(Image.memory(_binaryImageData.rawBytes)); // TODO remove
+    stepImages.add(Image.memory(_binaryImageData.bytes)); // TODO remove
 
     for (int b = 1; b < blobs.length; b++) {
       x = blobs[b].points[0][0];
@@ -214,24 +204,88 @@ class SudokuGridDetector {
         imgData: _binaryImageData,
       );
     }
-    stepImages.add(Image.memory(_binaryImageData.rawBytes)); // TODO remove
+    stepImages.add(Image.memory(_binaryImageData.bytes)); // TODO remove
 
-    // TODO next step
+    try {
+      // Erosion
+      _res = await ImgProc.erode(_binaryImageData.bytes, [1, 1]);
+      _binaryImageData = ImageData(image: await _bytesToImage(_res));
+      await _binaryImageData.imageToByteData();
+    } on PlatformException {
+      print("some error occurred. possibly OpenCV PlatformException");
+      return false;
+    }
+
+    // detect corners from binary grid
+    List<List<int>> corners = _detectCorners(_binaryImageData, blobs[0].points);
+    if (corners == null) return false;
+
+    for (List<int> corner in corners) {
+      print(corner);
+    }
+
+    // TODO remove below when all is complete.
+    int size = 10;
+    for (List<int> c in corners) {
+      for (int i = -size ~/ 2; i <= size ~/ 2; i++) {
+        for (int j = -size ~/ 2; j <= size ~/ 2; j++) {
+          _binaryImageData.setPixelColorAt(c[0] + i, c[1] + j, Colors.red);
+        }
+      }
+    }
+    stepImages.add(Image.memory(_binaryImageData.bytes)); // TODO remove
+    // TODO remove above when all is complete.
+
+    // TODO get points in the right order...
+    corners = [corners[2], corners[3], corners[0], corners[1]];
+
+    // TODO grid transform
+    try {
+      // Perspective Transform
+      int gridSize = _binaryImageData.width;
+      _res = await ImgProc.warpPerspectiveTransform(
+        _file.readAsBytesSync(),
+        sourcePoints: [
+          corners[0][0],
+          corners[0][1],
+          corners[1][0],
+          corners[1][1],
+          corners[2][0],
+          corners[2][1],
+          corners[3][0],
+          corners[3][1],
+        ],
+        destinationPoints: [0, 0, gridSize, 0, 0, gridSize, gridSize, gridSize],
+        outputSize: [gridSize.toDouble(), gridSize.toDouble()],
+      );
+      stepImages.add(Image.memory(_res));
+//      _binaryImageData = ImageData(image: await _bytesToImage(_res));
+//      await _binaryImageData.imageToByteData();
+    } on PlatformException {
+      print("some error occurred. possibly OpenCV PlatformException");
+      return false;
+    }
 
     return true;
+  }
+
+  // This function helps convert raw image data into a ui.Image Object
+  Future<ui.Image> _bytesToImage(Uint8List imgBytes) async {
+    ui.Codec codec = await ui.instantiateImageCodec(imgBytes);
+    ui.FrameInfo frame = await codec.getNextFrame();
+    return frame.image;
   }
 
   void _floodFill({
     @required int x,
     @required int y,
     Color toFill = Colors.white,
-    @required Color fill,
+    Color fill = Colors.grey,
     @required ImageData imgData,
     _Blob blob,
-    double error = 0.1,
   }) {
     // return if the coordinate point is outside of image
-    if (x < 0 || x >= imgData.width || y < 0 || y >= imgData.height) {
+    if (_pixelIsOffImage(imgData, x, y)) {
       return;
     }
 
@@ -281,6 +335,59 @@ class SudokuGridDetector {
       blob: blob,
     );
     return;
+  }
+
+  // center of mass calculation to determine the four furthest points (corners)
+  // https://stackoverflow.com/questions/66271931/find-the-corner-points-of-a-set-of-pixels-that-make-up-a-quadrilateral-boundary/66272023?noredirect=1#comment117166203_66272023
+  List<List<int>> _detectCorners(
+      ImageData imgData, List<List<int>> boundaryPixels) {
+    if (boundaryPixels == null || boundaryPixels.length < 4) return null;
+
+    // get the center of mass
+    double centerX = 0;
+    double centerY = 0;
+    for (List<int> point in boundaryPixels) {
+      centerX += point[0];
+      centerY += point[1];
+    }
+    centerX /= boundaryPixels.length;
+    centerY /= boundaryPixels.length;
+    print("$centerX, $centerY");
+
+    // sort blob pixels by distance from the center
+    boundaryPixels.sort(
+      (b, a) => (_pointDistance(a[0], a[1], centerX.toInt(), centerY.toInt()))
+          .compareTo(
+        _pointDistance(b[0], b[1], centerX.toInt(), centerY.toInt()),
+      ),
+    );
+
+    // remove duplicate corners
+    List<List<int>> fourCorners = [boundaryPixels[0]];
+    for (List<int> np in boundaryPixels) {
+      bool contained = false;
+      for (List<int> fcp in fourCorners) {
+        if (_pointDistance(np[0], np[1], fcp[0], fcp[1]) < imgData.width / 5) {
+          contained = true;
+          break;
+        }
+      }
+      if (!contained) {
+        fourCorners.add(np);
+      }
+      if (fourCorners.length == 4) break;
+    }
+
+    // return the first four pixels
+    return fourCorners;
+  }
+
+  double _pointDistance(int x1, int y1, int x2, int y2) {
+    return sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
+  }
+
+  bool _pixelIsOffImage(ImageData imgData, int x, int y) {
+    return y < 0 || y >= imgData.height || x < 0 || x >= imgData.width;
   }
 }
 
