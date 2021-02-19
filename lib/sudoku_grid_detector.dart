@@ -129,6 +129,7 @@ class SudokuGridDetector {
       // ensure that it is truly just black or white
       // for some reason some of the pixels are not pure black/white and
       // it causes issues when doing blob detection.
+      // TODO can someone figure out why the image values aren't actually binary?
       Color c;
       for (int row = 0; row < _binaryImageData.width; row++) {
         for (int col = 0; col < _binaryImageData.height; col++) {
@@ -176,7 +177,7 @@ class SudokuGridDetector {
     }
 
     // flood fill the largest blob with white (should be the sudoku grid)
-    // flood fill the smaller blobs with black
+    // flood fill the smaller blobs with black TODO fill blobs with black instead of gray above and then you don't have to fill all of the small blobs with black again.
     blobs.sort((b, a) => a.size.compareTo(b.size));
 
     int x, y;
@@ -235,9 +236,6 @@ class SudokuGridDetector {
     }
     stepImages.add(Image.memory(_binaryImageData.bytes)); // TODO remove
     // TODO remove above when all is complete.
-
-    // TODO get points in the right order...
-    corners = [corners[2], corners[3], corners[0], corners[1]];
 
     // TODO grid transform
     try {
@@ -378,8 +376,30 @@ class SudokuGridDetector {
       if (fourCorners.length == 4) break;
     }
 
-    // return the first four pixels
-    return fourCorners;
+    // determine which cartesian quadrant each corner is in based on the grid center as origin
+    // quadrants are in order: top-left, top-right, bottom-left, bottom-right
+    List<int> quadrant = [0, 0, 0, 0];
+    for (int i = 0; i < fourCorners.length; i++) {
+      int difX = fourCorners[i][0] - centerX.toInt();
+      int difY = fourCorners[i][1] - centerY.toInt();
+      if (difX < 0 && difY < 0) {
+        quadrant[0] = i;
+      } else if (difX >= 0 && difY < 0) {
+        quadrant[1] = i;
+      } else if (difX < 0 && difY >= 0) {
+        quadrant[2] = i;
+      } else if (difX >= 0 && difY >= 0) {
+        quadrant[3] = i;
+      }
+    }
+
+    // return the four corner locations in order
+    return [
+      fourCorners[quadrant[0]],
+      fourCorners[quadrant[1]],
+      fourCorners[quadrant[2]],
+      fourCorners[quadrant[3]],
+    ];
   }
 
   double _pointDistance(int x1, int y1, int x2, int y2) {
