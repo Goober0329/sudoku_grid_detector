@@ -23,6 +23,9 @@ class SudokuGridDetector {
   Image _binaryImage;
   ImageData _binaryImageData;
   Uint8List _res;
+  Uint8List _gridTransform;
+  int _gridTransformSize;
+  List<List<ImageData>> _digitsImageData;
 
   List<List<int>> _sudokuGrid;
 
@@ -53,6 +56,10 @@ class SudokuGridDetector {
     if (!allAccordingToPlan) return false;
 
     // TODO pull digits from the grid
+
+    // detect the grid, perform a matrix transform to show just the grid
+//    allAccordingToPlan = await _isolateDigits();
+//    if (!allAccordingToPlan) return false;
 
     return allAccordingToPlan;
   }
@@ -226,6 +233,7 @@ class SudokuGridDetector {
     }
 
     // TODO remove below when all is complete.
+    // TODO this is just for visualizing the process
     int size = 10;
     for (List<int> c in corners) {
       for (int i = -size ~/ 2; i <= size ~/ 2; i++) {
@@ -237,10 +245,9 @@ class SudokuGridDetector {
     stepImages.add(Image.memory(_binaryImageData.bytes)); // TODO remove
     // TODO remove above when all is complete.
 
-    // TODO grid transform
     try {
       // Perspective Transform
-      int gridSize = _binaryImageData.width;
+      _gridTransformSize = _binaryImageData.width;
       _res = await ImgProc.warpPerspectiveTransform(
         _file.readAsBytesSync(),
         sourcePoints: [
@@ -253,18 +260,159 @@ class SudokuGridDetector {
           corners[3][0],
           corners[3][1],
         ],
-        destinationPoints: [0, 0, gridSize, 0, 0, gridSize, gridSize, gridSize],
-        outputSize: [gridSize.toDouble(), gridSize.toDouble()],
+        destinationPoints: [
+          0,
+          0,
+          _gridTransformSize,
+          0,
+          0,
+          _gridTransformSize,
+          _gridTransformSize,
+          _gridTransformSize,
+        ],
+        outputSize: [
+          _gridTransformSize.toDouble(),
+          _gridTransformSize.toDouble(),
+        ],
       );
-      stepImages.add(Image.memory(_res));
-//      _binaryImageData = ImageData(image: await _bytesToImage(_res));
-//      await _binaryImageData.imageToByteData();
+      _gridTransform = _res;
+      stepImages.add(Image.memory(_gridTransform)); // TODO remove
     } on PlatformException {
-      print("some error occurred. possibly OpenCV PlatformException");
+      print("some error occurred. OpenCV PlatformException");
       return false;
     }
 
     return true;
+  }
+
+  Future<bool> _isolateDigits() async {
+    // TODO
+    _digitsImageData = List.filled(9, List.filled(9, null));
+
+    // segment the warped image into a 9x9 grid
+    int squareSize = _gridTransformSize ~/ 9;
+    int error = squareSize ~/ 10;
+    for (int row = 0; row < 9; row++) {
+      for (int col = 0; col < 9; col++) {
+        try {
+          _res = await ImgProc.warpPerspectiveTransform(
+            _gridTransform,
+            sourcePoints: [
+              col * squareSize - error,
+              row * squareSize - error,
+              col * squareSize + squareSize + error,
+              row * squareSize - error,
+              col * squareSize - error,
+              row * squareSize + squareSize + error,
+              col * squareSize + squareSize + error,
+              row * squareSize + squareSize + error,
+            ],
+            destinationPoints: [
+              0,
+              0,
+              squareSize,
+              0,
+              0,
+              squareSize,
+              squareSize,
+              squareSize
+            ],
+            outputSize: [squareSize.toDouble(), squareSize.toDouble()],
+          );
+//          ImageData digit = ImageData(image: await _bytesToImage(_res));
+//          await digit.imageToByteData();
+//          _digitsImageData[row][col] = digit;
+//          _stepImages.add(Image.memory(digit.bytes));
+          print("transform done");
+        } on PlatformException {
+          print("some error occurred. OpenCV PlatformException");
+          return false;
+        }
+//        _digitsImageData[col][row]
+      }
+    }
+
+    // clean up each digit image
+    //    flood fill border parts
+    //    flood fill and find blobs
+    //    largest blob is number
+    //    move number to center of image (maybe not necessary)
+
+    return true;
+  }
+
+  // center of mass calculation to determine the four furthest points (corners)
+  // https://stackoverflow.com/questions/66271931/find-the-corner-points-of-a-set-of-pixels-that-make-up-a-quadrilateral-boundary/66272023?noredirect=1#comment117166203_66272023
+  List<List<int>> _detectCorners(
+      ImageData imgData, List<List<int>> boundaryPixels) {
+    if (boundaryPixels == null || boundaryPixels.length < 4) return null;
+
+    // get the center of mass
+    double centerX = 0;
+    double centerY = 0;
+    for (List<int> point in boundaryPixels) {
+      centerX += point[0];
+      centerY += point[1];
+    }
+    centerX /= boundaryPixels.length;
+    centerY /= boundaryPixels.length;
+    print("$centerX, $centerY");
+
+    // sort blob pixels by distance from the center
+    boundaryPixels.sort(
+      (b, a) => (_pointDistance(a[0], a[1], centerX.toInt(), centerY.toInt()))
+          .compareTo(
+        _pointDistance(b[0], b[1], centerX.toInt(), centerY.toInt()),
+      ),
+    );
+
+    double furthestDist = _pointDistance(
+      centerX.toInt(),
+      centerY.toInt(),
+      boundaryPixels[0][0],
+      boundaryPixels[0][1],
+    );
+
+    // remove duplicate corners
+    List<List<int>> fourCorners = [boundaryPixels[0]];
+    for (List<int> np in boundaryPixels) {
+      bool contained = false;
+      for (List<int> fcp in fourCorners) {
+        if (_pointDistance(np[0], np[1], fcp[0], fcp[1]) < furthestDist / 2) {
+          contained = true;
+          break;
+        }
+      }
+      if (!contained) {
+        fourCorners.add(np);
+      }
+      if (fourCorners.length == 4) break;
+    }
+
+    // determine which cartesian quadrant each corner is in based on the grid center as origin
+    // quadrants are in order: top-left, top-right, bottom-left, bottom-right
+    List<int> quadrant = [0, 0, 0, 0];
+    for (int i = 0; i < fourCorners.length; i++) {
+      int difX = fourCorners[i][0] - centerX.toInt();
+      int difY = fourCorners[i][1] - centerY.toInt();
+      if (difX < 0 && difY < 0) {
+        quadrant[0] = i;
+      } else if (difX >= 0 && difY < 0) {
+        quadrant[1] = i;
+      } else if (difX < 0 && difY >= 0) {
+        quadrant[2] = i;
+      } else if (difX >= 0 && difY >= 0) {
+        quadrant[3] = i;
+      }
+    }
+
+    // return the four corner locations in order
+    return [
+      fourCorners[quadrant[0]],
+      fourCorners[quadrant[1]],
+      fourCorners[quadrant[2]],
+      fourCorners[quadrant[3]],
+    ];
   }
 
   // This function helps convert raw image data into a ui.Image Object
@@ -335,77 +483,12 @@ class SudokuGridDetector {
     return;
   }
 
-  // center of mass calculation to determine the four furthest points (corners)
-  // https://stackoverflow.com/questions/66271931/find-the-corner-points-of-a-set-of-pixels-that-make-up-a-quadrilateral-boundary/66272023?noredirect=1#comment117166203_66272023
-  List<List<int>> _detectCorners(
-      ImageData imgData, List<List<int>> boundaryPixels) {
-    if (boundaryPixels == null || boundaryPixels.length < 4) return null;
-
-    // get the center of mass
-    double centerX = 0;
-    double centerY = 0;
-    for (List<int> point in boundaryPixels) {
-      centerX += point[0];
-      centerY += point[1];
-    }
-    centerX /= boundaryPixels.length;
-    centerY /= boundaryPixels.length;
-    print("$centerX, $centerY");
-
-    // sort blob pixels by distance from the center
-    boundaryPixels.sort(
-      (b, a) => (_pointDistance(a[0], a[1], centerX.toInt(), centerY.toInt()))
-          .compareTo(
-        _pointDistance(b[0], b[1], centerX.toInt(), centerY.toInt()),
-      ),
-    );
-
-    // remove duplicate corners
-    List<List<int>> fourCorners = [boundaryPixels[0]];
-    for (List<int> np in boundaryPixels) {
-      bool contained = false;
-      for (List<int> fcp in fourCorners) {
-        if (_pointDistance(np[0], np[1], fcp[0], fcp[1]) < imgData.width / 5) {
-          contained = true;
-          break;
-        }
-      }
-      if (!contained) {
-        fourCorners.add(np);
-      }
-      if (fourCorners.length == 4) break;
-    }
-
-    // determine which cartesian quadrant each corner is in based on the grid center as origin
-    // quadrants are in order: top-left, top-right, bottom-left, bottom-right
-    List<int> quadrant = [0, 0, 0, 0];
-    for (int i = 0; i < fourCorners.length; i++) {
-      int difX = fourCorners[i][0] - centerX.toInt();
-      int difY = fourCorners[i][1] - centerY.toInt();
-      if (difX < 0 && difY < 0) {
-        quadrant[0] = i;
-      } else if (difX >= 0 && difY < 0) {
-        quadrant[1] = i;
-      } else if (difX < 0 && difY >= 0) {
-        quadrant[2] = i;
-      } else if (difX >= 0 && difY >= 0) {
-        quadrant[3] = i;
-      }
-    }
-
-    // return the four corner locations in order
-    return [
-      fourCorners[quadrant[0]],
-      fourCorners[quadrant[1]],
-      fourCorners[quadrant[2]],
-      fourCorners[quadrant[3]],
-    ];
-  }
-
+  // distance between two points
   double _pointDistance(int x1, int y1, int x2, int y2) {
     return sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
   }
 
+  // false if point is outside of imgData boundaries
   bool _pixelIsOffImage(ImageData imgData, int x, int y) {
     return y < 0 || y >= imgData.height || x < 0 || x >= imgData.width;
   }

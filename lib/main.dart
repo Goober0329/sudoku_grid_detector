@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sudoku_grid_detector/sudoku_grid_detector.dart';
+import 'package:sudoku_grid_detector/sudoku_grid_detector_modified.dart';
 
 void main() {
   runApp(MyApp());
@@ -16,7 +17,8 @@ class _MyAppState extends State<MyApp> {
 
   void runDetector() async {
     print("running detector");
-    SudokuGridDetector detector = SudokuGridDetector.fromAsset("sudoku.jpeg");
+    SudokuGridDetectorModified detector =
+        SudokuGridDetectorModified.fromAsset("sudoku.jpeg");
     bool gotGrid = await detector.detectSudokuGrid();
     if (gotGrid) {
       setState(() {
@@ -46,7 +48,7 @@ class _MyAppState extends State<MyApp> {
             itemCount: steps.length,
             itemBuilder: (BuildContext context, int index) {
               return Container(
-                width: 300,
+//                width: 300,
                 child: steps[index],
               );
             },

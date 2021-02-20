@@ -13,6 +13,7 @@ class ImageData {
   int _width;
   int _height;
 
+  // init from ui.Image
   ImageData({@required ui.Image image}) : this._image = image;
 
   int get width => _width;
@@ -29,6 +30,7 @@ class ImageData {
   /// this method must be called once after class initialization and before
   /// calling [pixelColorAt] functions
   Future<void> imageToByteData() async {
+    if (_byteData != null && _width != null && _height != null) return;
     if (_image == null) {
       print("image was null and couldn't get byteData");
       _byteData = null;
