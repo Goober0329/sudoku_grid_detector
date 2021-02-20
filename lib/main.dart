@@ -16,8 +16,7 @@ class _MyAppState extends State<MyApp> {
 
   void runDetector() async {
     print("running detector");
-    SudokuGridDetectorModified detector =
-        SudokuGridDetectorModified.fromAsset("sudoku.jpeg");
+    SudokuGridDetector detector = SudokuGridDetector.fromAsset("sudoku.jpeg");
     bool gotGrid = await detector.detectSudokuGrid();
     if (gotGrid) {
       setState(() {

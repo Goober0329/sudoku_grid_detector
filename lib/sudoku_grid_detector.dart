@@ -9,14 +9,14 @@ import 'package:opencv/opencv.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:image/image.dart' as img;
 
-class SudokuGridDetectorModified {
+class SudokuGridDetector {
   // The code in this class is based on the tutorial by Neeramitra Reddy
   // https://medium.com/analytics-vidhya/smart-sudoku-solver-using-opencv-and-tensorflow-in-python3-3c8f42ca80aa
 
   static const int _cWhite = 0xFFFFFFFF;
-  static const int _cBlack = 0x00000000;
   static const int _cGray = 0xFF9F9F9F;
   static const int _cMiddle = 0xFF808080;
+  static const int _cBlack = 0x00000000;
 
   String _assetName;
   File _file;
@@ -24,17 +24,14 @@ class SudokuGridDetectorModified {
 
   img.Image _originalImage;
   img.Image _binaryImage;
-  img.Image _gridTransform;
+  img.Image _gridTransformImage;
 
-//  List<List<ImageData>> _digitsImageData;
-
+  List<List<img.Image>> _digitImages;
   List<List<int>> _sudokuGrid;
 
-  SudokuGridDetectorModified.fromAsset(String assetName)
-      : this._assetName = assetName;
-  SudokuGridDetectorModified.fromFile(File file) : this._file = file;
-  SudokuGridDetectorModified.fromBytes(Uint8List bytes)
-      : this._rawBytes = bytes;
+  SudokuGridDetector.fromAsset(String assetName) : this._assetName = assetName;
+  SudokuGridDetector.fromFile(File file) : this._file = file;
+  SudokuGridDetector.fromBytes(Uint8List bytes) : this._rawBytes = bytes;
 
   List<Image> stepImages = []; // TODO remove when complete
 
@@ -57,11 +54,11 @@ class SudokuGridDetectorModified {
     allAccordingToPlan = await _detectAndCropGrid();
     if (!allAccordingToPlan) return false;
 
-    // TODO pull digits from the grid
-
     // detect the grid, perform a matrix transform to show just the grid
-//    allAccordingToPlan = await _isolateDigits();
-//    if (!allAccordingToPlan) return false;
+    allAccordingToPlan = await _isolateDigits();
+    if (!allAccordingToPlan) return false;
+
+    // TODO pull digits from the grid
 
     return allAccordingToPlan;
   }
@@ -107,7 +104,7 @@ class SudokuGridDetectorModified {
       // Gaussian Blur
       Uint8List res = await ImgProc.gaussianBlur(
         _file.readAsBytesSync(),
-        [11, 11],
+        [7, 7],
         0,
       );
       stepImages.add(Image.memory((res))); // TODO remove
@@ -270,9 +267,9 @@ class SudokuGridDetectorModified {
           gridTransformSize.toDouble(),
         ],
       );
-      _gridTransform = img.decodeImage(res);
+      _gridTransformImage = img.decodeImage(res);
       stepImages
-          .add(Image.memory(img.encodeJpg(_gridTransform))); // TODO remove
+          .add(Image.memory(img.encodeJpg(_gridTransformImage))); // TODO remove
     } on PlatformException {
       print("some error occurred. OpenCV PlatformException");
       return false;
@@ -351,6 +348,40 @@ class SudokuGridDetectorModified {
       fourCorners[quadrant[2]],
       fourCorners[quadrant[3]],
     ];
+  }
+
+  Future<bool> _isolateDigits() async {
+    // TODO
+    // Platform messages may fail, so we use a try/catch PlatformException.
+    try {
+      // Gaussian Blur
+      Uint8List res = await ImgProc.gaussianBlur(
+        img.encodeJpg(_gridTransformImage),
+        [7, 7],
+        0,
+      );
+      stepImages.add(Image.memory((res))); // TODO remove
+
+      // Adaptive Threshold
+      res = await ImgProc.adaptiveThreshold(
+        res,
+        255,
+        ImgProc.adaptiveThreshGaussianC,
+        ImgProc.threshBinaryInv,
+        5,
+        2,
+      );
+      stepImages.add(Image.memory((res))); // TODO remove
+
+      _gridTransformImage = img.decodeImage(res);
+      stepImages
+          .add(Image.memory(img.encodeJpg(_gridTransformImage))); // TODO remove
+    } on PlatformException {
+      print("some error occurred. possibly OpenCV PlatformException");
+      return false;
+    }
+
+    return true;
   }
 
   void _floodFill({
