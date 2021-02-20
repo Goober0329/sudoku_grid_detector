@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:sudoku_grid_detector/sudoku_grid_detector.dart';
-import 'package:sudoku_grid_detector/sudoku_grid_detector_modified.dart';
 
 void main() {
   runApp(MyApp());
