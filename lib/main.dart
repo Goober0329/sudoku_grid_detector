@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sudoku_grid_detector/sudoku_grid_detector.dart';
+import 'package:image/image.dart' as img;
 
 void main() {
   runApp(MyApp());
@@ -12,6 +13,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   List<Image> steps = [];
+  List<Image> digits = [];
   List<List<double>> points;
 
   void runDetector() async {
@@ -20,9 +22,8 @@ class _MyAppState extends State<MyApp> {
     bool gotGrid = await detector.detectSudokuGrid();
     if (gotGrid) {
       setState(() {
-//        original = detector.originalImage;
-//        binary = detector.binaryImage;
         steps = detector.stepImages;
+        digits = detector.digitImages;
       });
       print("got grid!");
     } else {
@@ -41,37 +42,29 @@ class _MyAppState extends State<MyApp> {
             runDetector();
           },
         ),
-        body: Center(
-          child: ListView.builder(
-            itemCount: steps.length,
-            itemBuilder: (BuildContext context, int index) {
-              return Container(
-//                width: 300,
-                child: steps[index],
-              );
-            },
-          ),
+        body: Column(
+          children: [
+            Expanded(
+              child: ListView.builder(
+                itemCount: steps.length,
+                itemBuilder: (BuildContext context, int index) {
+                  return Container(
+                    child: steps[index],
+                  );
+                },
+              ),
+            ),
+            Expanded(
+              child: GridView.count(
+                crossAxisCount: 9,
+                crossAxisSpacing: 1,
+                mainAxisSpacing: 1,
+                children: digits,
+              ),
+            ),
+          ],
         ),
       ),
     );
-  }
-
-  List<Widget> getPointWidgets(List<List<double>> points, int w, int h) {
-    List<Widget> toReturn = [];
-
-    for (List<double> point in points) {
-      toReturn.add(
-        Positioned(
-          left: point[0] * w,
-          top: point[1] * h,
-          child: CircleAvatar(
-            radius: 2,
-            backgroundColor: Colors.red,
-          ),
-        ),
-      );
-    }
-
-    return toReturn;
   }
 }
