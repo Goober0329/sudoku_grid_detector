@@ -149,34 +149,8 @@ class SudokuGridDetector {
       }
     }
 
-    // flood fill the largest blob with white (should be the sudoku grid)
-    // flood fill the smaller blobs with black
+    // sort the detected blobs and assume the largest one is the grid
     blobs.sort((b, a) => a.size.compareTo(b.size));
-
-    int x, y;
-    x = blobs[0].points[0][0];
-    y = blobs[0].points[0][1];
-    c = _binaryImage.getPixel(x, y);
-    _floodFill(
-      x: x,
-      y: y,
-      toFill: c,
-      fill: _cWhite,
-      imgData: _binaryImage,
-    );
-
-    for (int b = 1; b < blobs.length; b++) {
-      x = blobs[b].points[0][0];
-      y = blobs[b].points[0][1];
-      c = _binaryImage.getPixel(x, y);
-      _floodFill(
-        x: x,
-        y: y,
-        toFill: c,
-        fill: _cBlack,
-        imgData: _binaryImage,
-      );
-    }
 
     // detect corners from binary grid
     List<List<int>> corners = _detectCorners(blobs[0]);
@@ -294,6 +268,7 @@ class SudokuGridDetector {
     ];
   }
 
+  /// extracts the individual integer data from the transformed grid image
   bool _extractDigits() {
     _cropDigits();
 
@@ -303,7 +278,7 @@ class SudokuGridDetector {
           .add(Image.memory(img.encodeJpg(_digitImages[i]))); // TODO remove
     }
 
-    // TODO
+    // TODO extract integer values from _digitImages
 
     return true;
   }
@@ -475,6 +450,7 @@ class SudokuGridDetector {
     }
   }
 
+  // recursive flood fill algorithm
   void _floodFill({
     @required int x,
     @required int y,
